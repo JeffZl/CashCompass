@@ -1,6 +1,6 @@
 "use client";
 
-import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
+import { PageHeader } from "@/components/PageHeader";
 import { SummaryCard } from "@/components/dashboard/SummaryCard";
 import { RecentTransactions } from "@/components/dashboard/RecentTransactions";
 import { IncomeExpenseChart } from "@/components/dashboard/IncomeExpenseChart";
@@ -31,8 +31,8 @@ function formatCurrency(amount: number) {
 export default function DashboardPage() {
     return (
         <div className="space-y-6">
-            {/* Page Header with Theme Toggle */}
-            <DashboardHeader
+            {/* Page Header */}
+            <PageHeader
                 title="Dashboard"
                 subtitle="Welcome back! Here's your financial overview."
             />
@@ -55,7 +55,6 @@ export default function DashboardPage() {
                     description="this month"
                     icon={TrendingDown}
                     trend={{ value: 4.1, isPositive: false }}
-                    iconBg="bg-rose-500/10 text-rose-500 dark:bg-rose-500/20"
                 />
                 <SummaryCard
                     title="Income"
@@ -63,7 +62,6 @@ export default function DashboardPage() {
                     description="this month"
                     icon={TrendingUp}
                     trend={{ value: 12.3, isPositive: true }}
-                    iconBg="bg-emerald-500/10 text-emerald-500 dark:bg-emerald-500/20"
                 />
                 <SummaryCard
                     title="Savings"
@@ -71,7 +69,6 @@ export default function DashboardPage() {
                     description="this month"
                     icon={PiggyBank}
                     trend={{ value: 8.2, isPositive: true }}
-                    iconBg="bg-violet-500/10 text-violet-500 dark:bg-violet-500/20"
                 />
             </div>
 
