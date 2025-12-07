@@ -20,12 +20,10 @@ import {
     timezones,
     dateFormats
 } from "@/lib/stores/userSettings";
+import { useExchangeRates } from "@/lib/contexts/ExchangeRateContext";
 import {
     getCurrency,
     formatCurrency,
-    convertCurrency,
-    formatExchangeRateInfo,
-    exchangeRates,
 } from "@/lib/currency";
 import {
     Save,
@@ -39,13 +37,29 @@ import {
     RefreshCw,
     Info,
     Sparkles,
+    AlertTriangle,
+    CheckCircle2,
+    Wifi,
+    WifiOff,
 } from "lucide-react";
 
-// Exchange rate display component
-function ExchangeRateCard({ fromCode, toCode }: { fromCode: string; toCode: string }) {
+// Exchange rate display component using live rates
+function ExchangeRateCard({
+    fromCode,
+    toCode,
+    rates
+}: {
+    fromCode: string;
+    toCode: string;
+    rates: Record<string, number>;
+}) {
     const from = getCurrency(fromCode);
     const to = getCurrency(toCode);
-    const rate = exchangeRates[toCode] / exchangeRates[fromCode];
+
+    // Calculate rate from live rates
+    const fromRate = rates[fromCode] || 1;
+    const toRate = rates[toCode] || 1;
+    const rate = toRate / fromRate;
 
     return (
         <div className="flex items-center justify-between p-3 rounded-xl glass-subtle">
@@ -67,8 +81,14 @@ function ExchangeRateCard({ fromCode, toCode }: { fromCode: string; toCode: stri
     );
 }
 
-// Conversion preview component
-function ConversionPreview({ preferredCurrency }: { preferredCurrency: string }) {
+// Conversion preview component using live rates
+function ConversionPreview({
+    preferredCurrency,
+    convertAmount,
+}: {
+    preferredCurrency: string;
+    convertAmount: (amount: number, from: string, to: string) => number;
+}) {
     const testAmounts = [
         { amount: 100, currency: "USD" },
         { amount: 100, currency: "EUR" },
@@ -80,7 +100,7 @@ function ConversionPreview({ preferredCurrency }: { preferredCurrency: string })
         <div className="space-y-2">
             {testAmounts.map(({ amount, currency }) => {
                 if (currency === preferredCurrency) return null;
-                const converted = convertCurrency(amount, currency, preferredCurrency);
+                const converted = convertAmount(amount, currency, preferredCurrency);
                 const fromCurr = getCurrency(currency);
 
                 return (
@@ -116,6 +136,18 @@ export default function SettingsPage() {
         loadSettings,
     } = useUserSettings();
 
+    // Live exchange rates from context
+    const {
+        rates,
+        source,
+        isLoading: isLoadingRates,
+        error: ratesError,
+        isFresh,
+        cacheAge,
+        refreshRates,
+        convertAmount,
+    } = useExchangeRates();
+
     const [saveStatus, setSaveStatus] = useState<"idle" | "success" | "error">("idle");
     const [hasChanges, setHasChanges] = useState(false);
 
@@ -147,6 +179,10 @@ export default function SettingsPage() {
         } catch {
             setSaveStatus("error");
         }
+    };
+
+    const handleRefreshRates = async () => {
+        await refreshRates();
     };
 
     const preferredCurrencyData = getCurrency(preferredCurrency);
@@ -211,9 +247,12 @@ export default function SettingsPage() {
                                 <div className="p-4 rounded-xl glass-subtle space-y-3">
                                     <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
                                         <Sparkles className="h-3.5 w-3.5" />
-                                        <span>Conversion Preview</span>
+                                        <span>Conversion Preview (Live Rates)</span>
                                     </div>
-                                    <ConversionPreview preferredCurrency={preferredCurrency} />
+                                    <ConversionPreview
+                                        preferredCurrency={preferredCurrency}
+                                        convertAmount={convertAmount}
+                                    />
                                 </div>
                             )}
                         </div>
@@ -338,33 +377,68 @@ export default function SettingsPage() {
                         <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-2">
                                 <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
-                                <h3 className="text-sm font-semibold">Exchange Rates</h3>
+                                <h3 className="text-sm font-semibold">Live Exchange Rates</h3>
                             </div>
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 rounded-lg hover-glass-light"
+                                onClick={handleRefreshRates}
+                                disabled={isLoadingRates}
+                                className={cn(
+                                    "h-8 w-8 rounded-lg hover-glass-light",
+                                    isLoadingRates && "animate-spin"
+                                )}
                             >
                                 <RefreshCw className="h-3.5 w-3.5" />
                             </Button>
                         </div>
 
-                        <div className="space-y-2">
-                            <ExchangeRateCard fromCode="USD" toCode={preferredCurrency} />
-                            {preferredCurrency !== "EUR" && (
-                                <ExchangeRateCard fromCode="EUR" toCode={preferredCurrency} />
-                            )}
-                            {preferredCurrency !== "GBP" && (
-                                <ExchangeRateCard fromCode="GBP" toCode={preferredCurrency} />
-                            )}
-                            {preferredCurrency !== "JPY" && (
-                                <ExchangeRateCard fromCode="JPY" toCode={preferredCurrency} />
+                        {/* Status indicator */}
+                        <div className={cn(
+                            "flex items-center gap-2 mb-4 p-2 rounded-lg text-xs",
+                            ratesError
+                                ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                                : isFresh
+                                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                    : "bg-muted text-muted-foreground"
+                        )}>
+                            {ratesError ? (
+                                <>
+                                    <WifiOff className="h-3.5 w-3.5" />
+                                    <span>Using cached rates</span>
+                                </>
+                            ) : isFresh ? (
+                                <>
+                                    <Wifi className="h-3.5 w-3.5" />
+                                    <span>Rates up to date</span>
+                                </>
+                            ) : (
+                                <>
+                                    <AlertTriangle className="h-3.5 w-3.5" />
+                                    <span>Rates may be outdated</span>
+                                </>
                             )}
                         </div>
 
-                        <div className="mt-4 pt-4 border-t border-border/50">
+                        <div className="space-y-2">
+                            <ExchangeRateCard fromCode="USD" toCode={preferredCurrency} rates={rates} />
+                            {preferredCurrency !== "EUR" && (
+                                <ExchangeRateCard fromCode="EUR" toCode={preferredCurrency} rates={rates} />
+                            )}
+                            {preferredCurrency !== "GBP" && (
+                                <ExchangeRateCard fromCode="GBP" toCode={preferredCurrency} rates={rates} />
+                            )}
+                            {preferredCurrency !== "JPY" && (
+                                <ExchangeRateCard fromCode="JPY" toCode={preferredCurrency} rates={rates} />
+                            )}
+                        </div>
+
+                        <div className="mt-4 pt-4 border-t border-border/50 space-y-1">
                             <p className="text-[10px] text-muted-foreground text-center">
-                                {formatExchangeRateInfo()}
+                                {source}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground text-center">
+                                Updated: {cacheAge}
                             </p>
                         </div>
                     </div>
@@ -401,6 +475,27 @@ export default function SettingsPage() {
                                         : "bg-muted text-muted-foreground"
                                 )}>
                                     {showConvertedAmounts ? "Enabled" : "Disabled"}
+                                </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs text-muted-foreground">Rate Status</span>
+                                <span className={cn(
+                                    "text-xs font-medium px-2 py-0.5 rounded-md flex items-center gap-1",
+                                    isFresh
+                                        ? "bg-emerald-500/10 text-emerald-600"
+                                        : "bg-amber-500/10 text-amber-600"
+                                )}>
+                                    {isFresh ? (
+                                        <>
+                                            <CheckCircle2 className="h-3 w-3" />
+                                            Fresh
+                                        </>
+                                    ) : (
+                                        <>
+                                            <AlertTriangle className="h-3 w-3" />
+                                            Stale
+                                        </>
+                                    )}
                                 </span>
                             </div>
                         </div>

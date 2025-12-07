@@ -35,11 +35,11 @@ import { cn } from "@/lib/utils";
 import {
     formatCurrency,
     getCurrency,
-    convertCurrency,
-    calculateUnifiedTotals,
 } from "@/lib/currency";
 import { useUserSettings } from "@/lib/stores/userSettings";
+import { useExchangeRates } from "@/lib/contexts/ExchangeRateContext";
 import {
+    Plus,
     Pencil,
     Trash2,
     RefreshCw,
@@ -127,6 +127,7 @@ const typeIcons: Record<string, React.ElementType> = {
 export default function AccountsPage() {
     const { user, isLoaded: isUserLoaded } = useUser();
     const { preferredCurrency, showConvertedAmounts } = useUserSettings();
+    const { convertAmount } = useExchangeRates();
 
     // Data state
     const [accounts, setAccounts] = useState<Account[]>(mockAccounts);
@@ -199,11 +200,11 @@ export default function AccountsPage() {
             byCurrency[currency] = (byCurrency[currency] || 0) + acc.balance;
         });
 
-        // Calculate unified total in preferred currency
+        // Calculate unified total in preferred currency using live rates
         let unifiedTotal = 0;
         if (showConvertedAmounts) {
             Object.entries(byCurrency).forEach(([currency, amount]) => {
-                unifiedTotal += convertCurrency(amount, currency, preferredCurrency);
+                unifiedTotal += convertAmount(amount, currency, preferredCurrency);
             });
         }
 
@@ -560,11 +561,11 @@ export default function AccountsPage() {
                                         {isNegative && "-"}{formatCurrency(account.balance, account.currency)}
                                     </p>
 
-                                    {/* Converted amount */}
+                                    {/* Converted amount using live rates */}
                                     {showConvertedAmounts && account.currency !== preferredCurrency && (
                                         <p className="text-xs text-muted-foreground mt-1">
                                             ≈ {getCurrency(preferredCurrency).flag} {formatCurrency(
-                                                convertCurrency(account.balance, account.currency, preferredCurrency),
+                                                convertAmount(account.balance, account.currency, preferredCurrency),
                                                 preferredCurrency
                                             )}
                                         </p>
