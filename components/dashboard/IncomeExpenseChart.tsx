@@ -109,7 +109,7 @@ export function IncomeExpenseChart({ data = [], hasData = false }: IncomeExpense
                     ) : (
                         <ResponsiveContainer width="100%" height="100%">
                             <AreaChart
-                                data={data}
+                                data={data as any}
                                 margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
                             >
                                 <defs>

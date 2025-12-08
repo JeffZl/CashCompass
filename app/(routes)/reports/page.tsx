@@ -305,7 +305,7 @@ export default function ReportsPage() {
                         </div>
                         <div className="h-64">
                             <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={monthlyData}>
+                                <AreaChart data={monthlyData as any}>
                                     <defs>
                                         <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
                                             <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
@@ -356,7 +356,7 @@ export default function ReportsPage() {
                             <ResponsiveContainer width="50%" height="100%">
                                 <PieChart>
                                     <Pie
-                                        data={categoryData}
+                                        data={categoryData as any}
                                         cx="50%"
                                         cy="50%"
                                         innerRadius={50}
@@ -405,7 +405,7 @@ export default function ReportsPage() {
                         </div>
                         <div className="h-64">
                             <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={dailySpending}>
+                                <BarChart data={dailySpending as any}>
                                     <CartesianGrid strokeDasharray="3 3" className="stroke-border/30" vertical={false} />
                                     <XAxis dataKey="day" axisLine={false} tickLine={false} className="text-xs fill-muted-foreground" />
                                     <YAxis axisLine={false} tickLine={false} className="text-xs fill-muted-foreground"
