@@ -10,16 +10,21 @@ import {
     ResponsiveContainer,
 } from "recharts";
 import { cn } from "@/lib/utils";
+import { BarChart3 } from "lucide-react";
+import { formatCurrency, getCurrencySymbol } from "@/lib/currency";
+import { useUserSettings } from "@/lib/stores/userSettings";
+import { TiltCard } from "@/components/ui/TiltCard";
 
-// Mock data - will be replaced with Supabase data later
-const mockMonthlyData = [
-    { month: "Jul", income: 4200, expenses: 3100 },
-    { month: "Aug", income: 4500, expenses: 3400 },
-    { month: "Sep", income: 4800, expenses: 2900 },
-    { month: "Oct", income: 5200, expenses: 3600 },
-    { month: "Nov", income: 5400, expenses: 3200 },
-    { month: "Dec", income: 5800, expenses: 2847 },
-];
+interface ChartData {
+    month: string;
+    income: number;
+    expenses: number;
+}
+
+interface IncomeExpenseChartProps {
+    data?: ChartData[];
+    hasData?: boolean;
+}
 
 interface CustomTooltipProps {
     active?: boolean;
@@ -29,35 +34,25 @@ interface CustomTooltipProps {
         color: string;
     }>;
     label?: string;
+    currencyCode: string;
 }
 
-function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
+function CustomTooltip({ active, payload, label, currencyCode }: CustomTooltipProps) {
     if (active && payload && payload.length) {
         return (
-            <div
-                className={cn(
-                    "rounded-2xl p-4 min-w-[140px]",
-                    "glass ios-shadow",
-                    "animate-in fade-in-0 zoom-in-95 duration-200"
-                )}
-            >
-                <p className="text-sm font-semibold mb-2">{label}</p>
+            <div className="rounded-xl glass-card p-3 ios-shadow">
+                <p className="text-xs font-medium text-muted-foreground mb-2">
+                    {label}
+                </p>
                 {payload.map((entry, index) => (
-                    <div
-                        key={index}
-                        className="flex items-center justify-between gap-4 text-sm"
-                    >
-                        <div className="flex items-center gap-2">
-                            <div
-                                className="h-2.5 w-2.5 rounded-full"
-                                style={{ backgroundColor: entry.color }}
-                            />
-                            <span className="capitalize text-muted-foreground text-xs">
-                                {entry.dataKey}
-                            </span>
-                        </div>
-                        <span className="font-semibold tabular-nums">
-                            ${entry.value.toLocaleString()}
+                    <div key={index} className="flex items-center gap-2">
+                        <div
+                            className="h-2 w-2 rounded-full"
+                            style={{ backgroundColor: entry.color }}
+                        />
+                        <span className="text-xs capitalize">{entry.dataKey}:</span>
+                        <span className="text-xs font-semibold">
+                            {formatCurrency(entry.value, currencyCode)}
                         </span>
                     </div>
                 ))}
@@ -67,132 +62,149 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
     return null;
 }
 
-export function IncomeExpenseChart() {
+export function IncomeExpenseChart({ data = [], hasData = false }: IncomeExpenseChartProps) {
+    const { preferredCurrency } = useUserSettings();
+    const currencySymbol = getCurrencySymbol(preferredCurrency);
+
+    // Check if we have any actual data in the chart
+    const hasChartData = data.some(d => d.income > 0 || d.expenses > 0);
+
+    // Format Y-axis values with the correct currency
+    const formatYAxis = (value: number) => {
+        if (value >= 1000000) {
+            return `${currencySymbol}${(value / 1000000).toFixed(1)}M`;
+        } else if (value >= 1000) {
+            return `${currencySymbol}${(value / 1000).toFixed(0)}k`;
+        }
+        return `${currencySymbol}${value}`;
+    };
+
     return (
-        <div className="rounded-3xl glass-card overflow-hidden">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-6 pb-2">
-                <div>
+        <TiltCard className="rounded-3xl h-full" tiltAmount={5} scale={1.01}>
+            <div className="rounded-3xl glass-card overflow-hidden h-full">
+                {/* Header */}
+                <div className="p-6 pb-2">
                     <h3 className="text-lg font-semibold tracking-tight">
                         Income vs Expenses
                     </h3>
                     <p className="text-sm text-muted-foreground mt-0.5">
-                        Monthly comparison for the last 6 months
+                        {hasData && hasChartData ? "Last 6 months overview" : "No data to display yet"}
                     </p>
                 </div>
 
-                {/* Legend */}
-                <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                        <div className="h-3 w-3 rounded-full bg-gradient-to-r from-emerald-400 to-emerald-600" />
-                        <span className="text-xs text-muted-foreground font-medium">
-                            Income
-                        </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <div className="h-3 w-3 rounded-full bg-gradient-to-r from-rose-400 to-rose-600" />
-                        <span className="text-xs text-muted-foreground font-medium">
-                            Expenses
-                        </span>
-                    </div>
+                {/* Chart */}
+                <div className="h-80 px-4 pb-6">
+                    {!hasData || !hasChartData ? (
+                        <div className="h-full flex flex-col items-center justify-center text-center">
+                            <div className="h-16 w-16 rounded-2xl bg-muted/50 flex items-center justify-center mb-4">
+                                <BarChart3 className="h-8 w-8 text-muted-foreground" />
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                                No chart data available
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                                Add transactions to see your income vs expenses chart
+                            </p>
+                        </div>
+                    ) : (
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart
+                                data={data}
+                                margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                            >
+                                <defs>
+                                    <linearGradient
+                                        id="colorIncome"
+                                        x1="0"
+                                        y1="0"
+                                        x2="0"
+                                        y2="1"
+                                    >
+                                        <stop
+                                            offset="5%"
+                                            stopColor="#10b981"
+                                            stopOpacity={0.3}
+                                        />
+                                        <stop
+                                            offset="95%"
+                                            stopColor="#10b981"
+                                            stopOpacity={0}
+                                        />
+                                    </linearGradient>
+                                    <linearGradient
+                                        id="colorExpenses"
+                                        x1="0"
+                                        y1="0"
+                                        x2="0"
+                                        y2="1"
+                                    >
+                                        <stop
+                                            offset="5%"
+                                            stopColor="#f43f5e"
+                                            stopOpacity={0.3}
+                                        />
+                                        <stop
+                                            offset="95%"
+                                            stopColor="#f43f5e"
+                                            stopOpacity={0}
+                                        />
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid
+                                    strokeDasharray="3 3"
+                                    className="stroke-border/30"
+                                    vertical={false}
+                                />
+                                <XAxis
+                                    dataKey="month"
+                                    axisLine={false}
+                                    tickLine={false}
+                                    className="text-xs fill-muted-foreground"
+                                    dy={10}
+                                />
+                                <YAxis
+                                    axisLine={false}
+                                    tickLine={false}
+                                    className="text-xs fill-muted-foreground"
+                                    tickFormatter={formatYAxis}
+                                    dx={-10}
+                                />
+                                <Tooltip content={<CustomTooltip currencyCode={preferredCurrency} />} />
+                                <Area
+                                    type="monotone"
+                                    dataKey="income"
+                                    stroke="#10b981"
+                                    strokeWidth={2}
+                                    fillOpacity={1}
+                                    fill="url(#colorIncome)"
+                                />
+                                <Area
+                                    type="monotone"
+                                    dataKey="expenses"
+                                    stroke="#f43f5e"
+                                    strokeWidth={2}
+                                    fillOpacity={1}
+                                    fill="url(#colorExpenses)"
+                                />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    )}
                 </div>
-            </div>
 
-            {/* Chart */}
-            <div className="px-4 pb-6">
-                <div className="h-[280px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart
-                            data={mockMonthlyData}
-                            margin={{ top: 20, right: 10, left: -10, bottom: 0 }}
-                        >
-                            <defs>
-                                <linearGradient id="incomeGradient" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stopColor="#10b981" stopOpacity={0.4} />
-                                    <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
-                                </linearGradient>
-                                <linearGradient
-                                    id="expenseGradient"
-                                    x1="0"
-                                    y1="0"
-                                    x2="0"
-                                    y2="1"
-                                >
-                                    <stop offset="0%" stopColor="#f43f5e" stopOpacity={0.4} />
-                                    <stop offset="100%" stopColor="#f43f5e" stopOpacity={0} />
-                                </linearGradient>
-                            </defs>
-                            <CartesianGrid
-                                strokeDasharray="4 4"
-                                stroke="currentColor"
-                                className="text-border/30"
-                                vertical={false}
-                            />
-                            <XAxis
-                                dataKey="month"
-                                axisLine={false}
-                                tickLine={false}
-                                tick={{
-                                    fill: "currentColor",
-                                    fontSize: 12,
-                                    className: "text-muted-foreground",
-                                }}
-                                dy={10}
-                            />
-                            <YAxis
-                                axisLine={false}
-                                tickLine={false}
-                                tick={{
-                                    fill: "currentColor",
-                                    fontSize: 12,
-                                    className: "text-muted-foreground",
-                                }}
-                                tickFormatter={(value) => `$${value / 1000}k`}
-                                dx={-5}
-                            />
-                            <Tooltip
-                                content={<CustomTooltip />}
-                                cursor={{
-                                    stroke: "currentColor",
-                                    strokeWidth: 1,
-                                    strokeDasharray: "4 4",
-                                    className: "text-border",
-                                }}
-                            />
-                            <Area
-                                type="monotone"
-                                dataKey="income"
-                                stroke="#10b981"
-                                strokeWidth={2.5}
-                                fill="url(#incomeGradient)"
-                                dot={false}
-                                activeDot={{
-                                    r: 6,
-                                    fill: "#10b981",
-                                    stroke: "white",
-                                    strokeWidth: 2,
-                                    className: "drop-shadow-lg",
-                                }}
-                            />
-                            <Area
-                                type="monotone"
-                                dataKey="expenses"
-                                stroke="#f43f5e"
-                                strokeWidth={2.5}
-                                fill="url(#expenseGradient)"
-                                dot={false}
-                                activeDot={{
-                                    r: 6,
-                                    fill: "#f43f5e",
-                                    stroke: "white",
-                                    strokeWidth: 2,
-                                    className: "drop-shadow-lg",
-                                }}
-                            />
-                        </AreaChart>
-                    </ResponsiveContainer>
-                </div>
+                {/* Legend */}
+                {hasData && hasChartData && (
+                    <div className="flex items-center justify-center gap-6 pb-6 px-6">
+                        <div className="flex items-center gap-2">
+                            <div className="h-3 w-3 rounded-full bg-emerald-500" />
+                            <span className="text-xs text-muted-foreground">Income</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="h-3 w-3 rounded-full bg-rose-500" />
+                            <span className="text-xs text-muted-foreground">Expenses</span>
+                        </div>
+                    </div>
+                )}
             </div>
-        </div>
+        </TiltCard>
     );
 }

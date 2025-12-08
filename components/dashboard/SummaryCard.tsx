@@ -1,6 +1,7 @@
 "use client";
 
 import { Card, CardContent } from "@/components/ui/card";
+import { TiltCard } from "@/components/ui/TiltCard";
 import { cn } from "@/lib/utils";
 import { LucideIcon } from "lucide-react";
 
@@ -31,101 +32,117 @@ export function SummaryCard({
     const isGradient = variant === "gradient";
 
     return (
-        <Card
-            className={cn(
-                "group relative overflow-hidden rounded-3xl border-0",
-                "cursor-pointer",
-                // Glass hover for non-gradient cards
-                !isGradient && "hover-glass-strong",
-                // Active press effect
-                "active:scale-[0.98]",
-                // Gradient cards have different hover
-                isGradient
-                    ? `bg-gradient-to-br ${gradientFrom} ${gradientTo} text-white ios-shadow hover:shadow-2xl hover:-translate-y-1 ios-transition`
-                    : "glass-card"
-            )}
+        <TiltCard
+            tiltAmount={8}
+            glareEnabled={true}
+            glareColor={isGradient ? "rgba(255, 255, 255, 0.3)" : "rgba(99, 102, 241, 0.1)"}
+            scale={1.02}
+            className="rounded-3xl"
         >
-            {/* Decorative glass orbs - iOS style */}
-            <div
+            <Card
                 className={cn(
-                    "absolute -right-6 -top-6 h-24 w-24 rounded-full",
-                    "ios-transition group-hover:scale-150",
-                    isGradient ? "bg-white/20" : "bg-primary/5"
+                    "group relative overflow-hidden rounded-3xl border-0",
+                    "cursor-pointer h-full",
+                    // Glass hover for non-gradient cards
+                    !isGradient && "hover-glass-strong",
+                    // Active press effect
+                    "active:scale-[0.98]",
+                    // Gradient cards have different style
+                    isGradient
+                        ? `bg-gradient-to-br ${gradientFrom} ${gradientTo} text-white ios-shadow`
+                        : "glass-card"
                 )}
-            />
-            <div
-                className={cn(
-                    "absolute -right-2 -top-2 h-12 w-12 rounded-full",
-                    "ios-transition group-hover:scale-150",
-                    isGradient ? "bg-white/10" : "bg-primary/3"
+            >
+                {/* Animated shimmer effect for gradient cards */}
+                {isGradient && (
+                    <div className="absolute inset-0 animate-shimmer opacity-30" />
                 )}
-            />
 
-            <CardContent className="relative p-6">
-                <div className="flex items-start justify-between gap-4">
-                    <div className="space-y-1.5 flex-1">
-                        <p
-                            className={cn(
-                                "text-xs font-medium uppercase tracking-wider",
-                                isGradient ? "text-white/80" : "text-muted-foreground"
-                            )}
-                        >
-                            {title}
-                        </p>
-                        <p className="text-3xl font-bold tracking-tight">{value}</p>
-                        {(description || trend) && (
-                            <div className="mt-3 flex items-center gap-2">
-                                {trend && (
-                                    <span
-                                        className={cn(
-                                            "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold",
-                                            "backdrop-blur-sm",
-                                            isGradient
-                                                ? "bg-white/20 text-white"
-                                                : trend.isPositive
-                                                    ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-                                                    : "bg-rose-500/15 text-rose-600 dark:text-rose-400"
-                                        )}
-                                    >
-                                        <span className="text-[10px]">
-                                            {trend.isPositive ? "▲" : "▼"}
+                {/* Decorative glass orbs - iOS style */}
+                <div
+                    className={cn(
+                        "absolute -right-6 -top-6 h-24 w-24 rounded-full",
+                        "ios-transition group-hover:scale-150",
+                        isGradient ? "bg-white/20" : "bg-primary/5"
+                    )}
+                />
+                <div
+                    className={cn(
+                        "absolute -right-2 -top-2 h-12 w-12 rounded-full",
+                        "ios-transition group-hover:scale-150",
+                        isGradient ? "bg-white/10" : "bg-primary/3"
+                    )}
+                />
+
+                <CardContent className="relative p-6">
+                    <div className="flex items-start justify-between gap-4">
+                        <div className="space-y-1.5 flex-1">
+                            <p
+                                className={cn(
+                                    "text-xs font-medium uppercase tracking-wider",
+                                    isGradient ? "text-white/80" : "text-muted-foreground"
+                                )}
+                            >
+                                {title}
+                            </p>
+                            <p className="text-3xl font-bold tracking-tight tabular-nums">
+                                {value}
+                            </p>
+                            {(description || trend) && (
+                                <div className="mt-3 flex items-center gap-2">
+                                    {trend && (
+                                        <span
+                                            className={cn(
+                                                "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold",
+                                                "backdrop-blur-sm",
+                                                isGradient
+                                                    ? "bg-white/20 text-white"
+                                                    : trend.isPositive
+                                                        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                                                        : "bg-rose-500/15 text-rose-600 dark:text-rose-400"
+                                            )}
+                                        >
+                                            <span className="text-[10px]">
+                                                {trend.isPositive ? "▲" : "▼"}
+                                            </span>
+                                            {Math.abs(trend.value)}%
                                         </span>
-                                        {Math.abs(trend.value)}%
-                                    </span>
-                                )}
-                                {description && (
-                                    <span
-                                        className={cn(
-                                            "text-xs",
-                                            isGradient ? "text-white/70" : "text-muted-foreground"
-                                        )}
-                                    >
-                                        {description}
-                                    </span>
-                                )}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Icon with glass effect */}
-                    <div
-                        className={cn(
-                            "flex h-14 w-14 items-center justify-center rounded-2xl",
-                            "ios-transition group-hover:scale-110 group-hover:rotate-6",
-                            isGradient
-                                ? "bg-white/20 backdrop-blur-sm"
-                                : "glass-subtle"
-                        )}
-                    >
-                        <Icon
-                            className={cn(
-                                "h-7 w-7",
-                                isGradient ? "text-white" : "text-foreground"
+                                    )}
+                                    {description && (
+                                        <span
+                                            className={cn(
+                                                "text-xs",
+                                                isGradient ? "text-white/70" : "text-muted-foreground"
+                                            )}
+                                        >
+                                            {description}
+                                        </span>
+                                    )}
+                                </div>
                             )}
-                        />
+                        </div>
+
+                        {/* Icon with glass effect - pops out in 3D */}
+                        <div
+                            className={cn(
+                                "flex h-14 w-14 items-center justify-center rounded-2xl",
+                                "ios-transition group-hover:scale-110 group-hover:rotate-6",
+                                isGradient
+                                    ? "bg-white/20 backdrop-blur-sm"
+                                    : "glass-subtle"
+                            )}
+                            style={{ transform: "translateZ(30px)" }}
+                        >
+                            <Icon
+                                className={cn(
+                                    "h-7 w-7",
+                                    isGradient ? "text-white" : "text-foreground"
+                                )}
+                            />
+                        </div>
                     </div>
-                </div>
-            </CardContent>
-        </Card>
+                </CardContent>
+            </Card>
+        </TiltCard>
     );
 }

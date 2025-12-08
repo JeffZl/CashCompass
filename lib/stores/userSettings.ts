@@ -2,6 +2,9 @@
 
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import { useState, useEffect, useCallback } from "react";
+import { useUser } from "@clerk/nextjs";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export interface UserSettings {
     preferredCurrency: string;
@@ -15,6 +18,8 @@ interface UserSettingsState extends UserSettings {
     isLoading: boolean;
     isSaving: boolean;
     lastSaved: Date | null;
+    _hasHydrated: boolean;
+    _userId: string | null;
 
     // Actions
     setPreferredCurrency: (currency: string) => void;
@@ -22,8 +27,8 @@ interface UserSettingsState extends UserSettings {
     setDateFormat: (format: string) => void;
     setShowConvertedAmounts: (show: boolean) => void;
     updateSettings: (settings: Partial<UserSettings>) => void;
-    saveSettings: () => Promise<void>;
-    loadSettings: (userId: string) => Promise<void>;
+    setHasHydrated: (state: boolean) => void;
+    setUserId: (userId: string | null) => void;
     resetSettings: () => void;
 }
 
@@ -34,14 +39,26 @@ const defaultSettings: UserSettings = {
     showConvertedAmounts: true,
 };
 
-export const useUserSettings = create<UserSettingsState>()(
+// Base store without persistence for SSR safety
+export const useUserSettingsStore = create<UserSettingsState>()(
     persist(
-        (set, get) => ({
+        (set) => ({
             // Default state
             ...defaultSettings,
             isLoading: false,
             isSaving: false,
             lastSaved: null,
+            _hasHydrated: false,
+            _userId: null,
+
+            // Hydration setter
+            setHasHydrated: (state) => {
+                set({ _hasHydrated: state });
+            },
+
+            setUserId: (userId) => {
+                set({ _userId: userId });
+            },
 
             // Actions
             setPreferredCurrency: (currency) => {
@@ -64,69 +81,6 @@ export const useUserSettings = create<UserSettingsState>()(
                 set(settings);
             },
 
-            saveSettings: async () => {
-                set({ isSaving: true });
-
-                try {
-                    // TODO: Save to Supabase
-                    // const { error } = await supabase
-                    //     .from('user_settings')
-                    //     .upsert({
-                    //         user_id: userId,
-                    //         preferred_currency: get().preferredCurrency,
-                    //         timezone: get().timezone,
-                    //         date_format: get().dateFormat,
-                    //         show_converted_amounts: get().showConvertedAmounts,
-                    //         updated_at: new Date().toISOString(),
-                    //     });
-                    // 
-                    // if (error) throw error;
-
-                    // Simulate API delay
-                    await new Promise((resolve) => setTimeout(resolve, 500));
-
-                    set({ lastSaved: new Date() });
-                } catch (error) {
-                    console.error("Failed to save settings:", error);
-                    throw error;
-                } finally {
-                    set({ isSaving: false });
-                }
-            },
-
-            loadSettings: async (userId: string) => {
-                set({ isLoading: true });
-
-                try {
-                    // TODO: Load from Supabase
-                    // const { data, error } = await supabase
-                    //     .from('user_settings')
-                    //     .select('*')
-                    //     .eq('user_id', userId)
-                    //     .single();
-                    // 
-                    // if (error && error.code !== 'PGRST116') throw error;
-                    // 
-                    // if (data) {
-                    //     set({
-                    //         preferredCurrency: data.preferred_currency,
-                    //         timezone: data.timezone,
-                    //         dateFormat: data.date_format,
-                    //         showConvertedAmounts: data.show_converted_amounts,
-                    //     });
-                    // }
-
-                    // Simulate API delay
-                    await new Promise((resolve) => setTimeout(resolve, 300));
-
-                    console.log("Loaded settings for user:", userId);
-                } catch (error) {
-                    console.error("Failed to load settings:", error);
-                } finally {
-                    set({ isLoading: false });
-                }
-            },
-
             resetSettings: () => {
                 set(defaultSettings);
             },
@@ -140,9 +94,165 @@ export const useUserSettings = create<UserSettingsState>()(
                 dateFormat: state.dateFormat,
                 showConvertedAmounts: state.showConvertedAmounts,
             }),
+            onRehydrateStorage: () => (state) => {
+                state?.setHasHydrated(true);
+            },
         }
     )
 );
+
+/**
+ * Hook that integrates user settings with Supabase
+ * - Loads settings from Supabase on mount
+ * - Saves settings to Supabase when they change
+ * - Falls back to localStorage for offline support
+ */
+export function useUserSettings() {
+    const { user, isLoaded: isUserLoaded } = useUser();
+    const store = useUserSettingsStore();
+    const [mounted, setMounted] = useState(false);
+    const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+
+    // Load settings from Supabase on mount
+    const loadFromSupabase = useCallback(async () => {
+        if (!user?.id) return;
+
+        try {
+            const supabase = getSupabaseBrowserClient();
+            const { data, error } = await supabase
+                .from('user_settings')
+                .select('*')
+                .eq('user_id', user.id)
+                .single();
+
+            if (error && error.code !== 'PGRST116') {
+                console.error('Failed to load settings from Supabase:', error);
+                return;
+            }
+
+            if (data) {
+                // Update store with Supabase data
+                store.updateSettings({
+                    preferredCurrency: data.preferred_currency || defaultSettings.preferredCurrency,
+                    timezone: data.timezone || defaultSettings.timezone,
+                    dateFormat: data.date_format || defaultSettings.dateFormat,
+                    showConvertedAmounts: data.show_converted_amounts ?? defaultSettings.showConvertedAmounts,
+                });
+                console.log('Loaded settings from Supabase:', data);
+            }
+        } catch (err) {
+            console.error('Error loading settings from Supabase:', err);
+        } finally {
+            setInitialLoadComplete(true);
+        }
+    }, [user?.id, store]);
+
+    // Save settings to Supabase
+    const saveToSupabase = useCallback(async (settings: UserSettings) => {
+        if (!user?.id) return;
+
+        try {
+            const supabase = getSupabaseBrowserClient();
+            const { error } = await supabase
+                .from('user_settings')
+                .upsert({
+                    user_id: user.id,
+                    preferred_currency: settings.preferredCurrency,
+                    timezone: settings.timezone,
+                    date_format: settings.dateFormat,
+                    show_converted_amounts: settings.showConvertedAmounts,
+                    updated_at: new Date().toISOString(),
+                }, {
+                    onConflict: 'user_id',
+                });
+
+            if (error) {
+                console.error('Failed to save settings to Supabase:', error);
+                return false;
+            }
+
+            console.log('Saved settings to Supabase');
+            return true;
+        } catch (err) {
+            console.error('Error saving settings to Supabase:', err);
+            return false;
+        }
+    }, [user?.id]);
+
+    // Set mounted state
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    // Load from Supabase when user is available
+    useEffect(() => {
+        if (isUserLoaded && user?.id && mounted && !initialLoadComplete) {
+            loadFromSupabase();
+        }
+    }, [isUserLoaded, user?.id, mounted, initialLoadComplete, loadFromSupabase]);
+
+    // Enhanced setters that also save to Supabase
+    const setPreferredCurrency = useCallback((currency: string) => {
+        store.setPreferredCurrency(currency);
+        saveToSupabase({ ...store, preferredCurrency: currency });
+    }, [store, saveToSupabase]);
+
+    const setTimezone = useCallback((timezone: string) => {
+        store.setTimezone(timezone);
+        saveToSupabase({ ...store, timezone });
+    }, [store, saveToSupabase]);
+
+    const setDateFormat = useCallback((format: string) => {
+        store.setDateFormat(format);
+        saveToSupabase({ ...store, dateFormat: format });
+    }, [store, saveToSupabase]);
+
+    const setShowConvertedAmounts = useCallback((show: boolean) => {
+        store.setShowConvertedAmounts(show);
+        saveToSupabase({ ...store, showConvertedAmounts: show });
+    }, [store, saveToSupabase]);
+
+    const updateSettings = useCallback((settings: Partial<UserSettings>) => {
+        store.updateSettings(settings);
+        saveToSupabase({ ...store, ...settings });
+    }, [store, saveToSupabase]);
+
+    // Manual save function
+    const saveSettings = useCallback(async () => {
+        const currentSettings: UserSettings = {
+            preferredCurrency: store.preferredCurrency,
+            timezone: store.timezone,
+            dateFormat: store.dateFormat,
+            showConvertedAmounts: store.showConvertedAmounts,
+        };
+        return saveToSupabase(currentSettings);
+    }, [store, saveToSupabase]);
+
+    // Return store values only after mounted to avoid hydration mismatch
+    return {
+        // State
+        preferredCurrency: mounted ? store.preferredCurrency : defaultSettings.preferredCurrency,
+        timezone: mounted ? store.timezone : defaultSettings.timezone,
+        dateFormat: mounted ? store.dateFormat : defaultSettings.dateFormat,
+        showConvertedAmounts: mounted ? store.showConvertedAmounts : defaultSettings.showConvertedAmounts,
+        isLoading: !initialLoadComplete && isUserLoaded && !!user?.id,
+        isSaving: store.isSaving,
+        lastSaved: store.lastSaved,
+        isHydrated: mounted && store._hasHydrated,
+
+        // Actions that save to Supabase
+        setPreferredCurrency,
+        setTimezone,
+        setDateFormat,
+        setShowConvertedAmounts,
+        updateSettings,
+        saveSettings,
+        resetSettings: store.resetSettings,
+
+        // Refresh from Supabase
+        refresh: loadFromSupabase,
+    };
+}
 
 // Timezone options
 export const timezones = [

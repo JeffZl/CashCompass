@@ -42,6 +42,11 @@ import {
     Wifi,
     WifiOff,
 } from "lucide-react";
+// Supabase hooks - uncomment when USE_SUPABASE is true
+import { useSupabaseSettings } from "@/lib/supabase";
+
+// Feature flag - set to true when Supabase database is ready
+const USE_SUPABASE = true;
 
 // Exchange rate display component using live rates
 function ExchangeRateCard({
@@ -127,13 +132,14 @@ export default function SettingsPage() {
         dateFormat,
         showConvertedAmounts,
         isSaving,
+        isLoading,
         lastSaved,
         setPreferredCurrency,
         setTimezone,
         setDateFormat,
         setShowConvertedAmounts,
         saveSettings,
-        loadSettings,
+        refresh,
     } = useUserSettings();
 
     // Live exchange rates from context
@@ -151,12 +157,7 @@ export default function SettingsPage() {
     const [saveStatus, setSaveStatus] = useState<"idle" | "success" | "error">("idle");
     const [hasChanges, setHasChanges] = useState(false);
 
-    // Load settings on mount
-    useEffect(() => {
-        if (isUserLoaded && user) {
-            loadSettings(user.id);
-        }
-    }, [isUserLoaded, user, loadSettings]);
+    // Settings are loaded automatically by the hook, no manual loading needed
 
     // Track changes
     useEffect(() => {

@@ -246,4 +246,214 @@
   .dark .hover-glass-light:hover {
     background: oklch(0.2 0 0 / 40%);
   }
+
+  /* Confetti Animation */
+  @keyframes confetti-fall {
+    0% {
+      transform: translateY(0) rotate(0deg);
+      opacity: 1;
+    }
+
+    100% {
+      transform: translateY(100vh) rotate(720deg);
+      opacity: 0;
+    }
+  }
+
+  .animate-confetti {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    animation: confetti-fall 2s ease-out forwards;
+  }
+
+  .animate-confetti-fall {
+    animation: confetti-fall 3s ease-out forwards;
+  }
+
+  /* 3D Tilt Card Effect */
+  .tilt-card {
+    transform-style: preserve-3d;
+    transition: transform 0.3s ease-out;
+    will-change: transform;
+  }
+
+  .tilt-card:hover {
+    transform: perspective(1000px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+  }
+
+  .tilt-card-content {
+    transform: translateZ(20px);
+    transition: transform 0.3s ease-out;
+  }
+
+  .tilt-card:hover .tilt-card-content {
+    transform: translateZ(40px);
+  }
+
+  /* Shimmer Effect for Loading */
+  @keyframes shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+
+    100% {
+      background-position: 200% 0;
+    }
+  }
+
+  .animate-shimmer {
+    background: linear-gradient(90deg,
+        transparent 0%,
+        oklch(1 0 0 / 10%) 50%,
+        transparent 100%);
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite;
+  }
+
+  /* Glow Pulse Effect */
+  @keyframes glow-pulse {
+
+    0%,
+    100% {
+      opacity: 0.5;
+      transform: scale(1);
+    }
+
+    50% {
+      opacity: 0.8;
+      transform: scale(1.1);
+    }
+  }
+
+  .animate-glow-pulse {
+    animation: glow-pulse 2s ease-in-out infinite;
+  }
+
+  /* Floating Animation */
+  @keyframes float {
+
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+
+    50% {
+      transform: translateY(-10px);
+    }
+  }
+
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  /* Skeleton Shimmer Effect */
+  @keyframes skeleton-shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+
+    100% {
+      background-position: 200% 0;
+    }
+  }
+
+  .skeleton-shimmer {
+    background: linear-gradient(90deg,
+        transparent 0%,
+        oklch(0.5 0 0 / 8%) 20%,
+        oklch(0.5 0 0 / 15%) 50%,
+        oklch(0.5 0 0 / 8%) 80%,
+        transparent 100%);
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.5s ease-in-out infinite;
+  }
+
+  .dark .skeleton-shimmer {
+    background: linear-gradient(90deg,
+        transparent 0%,
+        oklch(1 0 0 / 5%) 20%,
+        oklch(1 0 0 / 10%) 50%,
+        oklch(1 0 0 / 5%) 80%,
+        transparent 100%);
+    background-size: 200% 100%;
+  }
+
+  /* Bounce In Animation */
+  @keyframes bounce-in {
+    0% {
+      opacity: 0;
+      transform: scale(0.3);
+    }
+
+    50% {
+      transform: scale(1.05);
+    }
+
+    70% {
+      transform: scale(0.9);
+    }
+
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  .animate-bounce-in {
+    animation: bounce-in 0.5s ease-out;
+  }
+
+  /* Slide Up Animation */
+  @keyframes slide-up {
+    0% {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-slide-up {
+    animation: slide-up 0.4s ease-out;
+  }
+
+  /* Fade Scale Animation */
+  @keyframes fade-scale {
+    0% {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  .animate-fade-scale {
+    animation: fade-scale 0.3s ease-out;
+  }
+
+  /* Success Checkmark Animation */
+  @keyframes check-scale {
+    0% {
+      transform: scale(0);
+    }
+
+    50% {
+      transform: scale(1.2);
+    }
+
+    100% {
+      transform: scale(1);
+    }
+  }
+
+  .animate-check {
+    animation: check-scale 0.4s ease-out;
+  }
 }

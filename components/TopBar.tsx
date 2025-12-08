@@ -3,7 +3,7 @@
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ProfileButton } from "@/components/ProfileButton";
 import { NotificationsButton } from "@/components/NotificationsButton";
-import { Search, Menu } from "lucide-react";
+import { Search, Menu, Command } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -12,6 +12,18 @@ interface TopBarProps {
 }
 
 export function TopBar({ onMobileMenuClick }: TopBarProps) {
+    // Trigger command palette
+    const handleSearchClick = () => {
+        // Simulate Cmd+K keypress to open command palette
+        const event = new KeyboardEvent("keydown", {
+            key: "k",
+            metaKey: true,
+            ctrlKey: true,
+            bubbles: true,
+        });
+        document.dispatchEvent(event);
+    };
+
     return (
         <header
             className={cn(
@@ -54,12 +66,33 @@ export function TopBar({ onMobileMenuClick }: TopBarProps) {
                             "glass-subtle"
                         )}
                     >
-                        {/* Search Button */}
+                        {/* Search Button - Opens Command Palette */}
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleSearchClick}
+                            className={cn(
+                                "h-10 rounded-xl gap-2 px-3",
+                                "border border-transparent",
+                                "hover-glass-light",
+                                "active:scale-95",
+                                "hidden sm:flex"
+                            )}
+                        >
+                            <Search className="h-[18px] w-[18px]" />
+                            <span className="text-sm text-muted-foreground">Search...</span>
+                            <kbd className="ml-2 hidden lg:inline-flex h-5 select-none items-center gap-1 rounded border border-border/50 bg-muted/30 px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+                                <Command className="h-3 w-3" />K
+                            </kbd>
+                        </Button>
+
+                        {/* Mobile Search Icon */}
                         <Button
                             variant="ghost"
                             size="icon"
+                            onClick={handleSearchClick}
                             className={cn(
-                                "h-10 w-10 rounded-xl",
+                                "h-10 w-10 rounded-xl sm:hidden",
                                 "border border-transparent",
                                 "hover-glass-light",
                                 "active:scale-95"

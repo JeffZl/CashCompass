@@ -1,17 +1,25 @@
 "use client";
 
-import { TrendingUp, Percent, Target, AlertCircle } from "lucide-react";
+import { TrendingUp, Percent, Target, AlertCircle, Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/lib/currency";
+import { useUserSettings } from "@/lib/stores/userSettings";
+import { TiltCard } from "@/components/ui/TiltCard";
 
-// Mock data - will be replaced with Supabase data later
-const healthMetrics = {
-    savingsRate: 23.5,
-    incomeThisMonth: 5400,
-    expensesThisMonth: 2847,
-    budgetUsed: 68,
-    monthlyTarget: 1500,
-    currentSavings: 1250,
-};
+interface HealthMetrics {
+    savingsRate: number;
+    income: number;
+    expenses: number;
+    netIncome: number;
+    budgetUsed: number;
+    currentSavings: number;
+    monthlyTarget: number;
+}
+
+interface FinancialHealthProps {
+    metrics?: HealthMetrics;
+    hasData?: boolean;
+}
 
 interface MetricCardProps {
     title: string;
@@ -105,79 +113,108 @@ function MetricCard({
     );
 }
 
-export function FinancialHealth() {
-    const netIncome =
-        healthMetrics.incomeThisMonth - healthMetrics.expensesThisMonth;
-    const savingsProgress =
-        (healthMetrics.currentSavings / healthMetrics.monthlyTarget) * 100;
+const defaultMetrics: HealthMetrics = {
+    savingsRate: 0,
+    income: 0,
+    expenses: 0,
+    netIncome: 0,
+    budgetUsed: 0,
+    currentSavings: 0,
+    monthlyTarget: 1000,
+};
+
+export function FinancialHealth({ metrics = defaultMetrics, hasData = false }: FinancialHealthProps) {
+    const { preferredCurrency } = useUserSettings();
+
+    const savingsProgress = metrics.monthlyTarget > 0
+        ? (metrics.currentSavings / metrics.monthlyTarget) * 100
+        : 0;
 
     return (
-        <div className="rounded-3xl glass-card overflow-hidden h-full">
-            {/* Header */}
-            <div className="p-6 pb-4">
-                <h3 className="text-lg font-semibold tracking-tight">
-                    Financial Health
-                </h3>
-                <p className="text-sm text-muted-foreground mt-0.5">
-                    Your financial wellness snapshot
-                </p>
+        <TiltCard className="rounded-3xl" tiltAmount={5} scale={1.01}>
+            <div className="rounded-3xl glass-card overflow-hidden h-full">
+                {/* Header */}
+                <div className="p-6 pb-4">
+                    <h3 className="text-lg font-semibold tracking-tight">
+                        Financial Health
+                    </h3>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                        {hasData ? "Your financial wellness snapshot" : "Add transactions to see your financial health"}
+                    </p>
+                </div>
+
+                {/* Metrics Grid - Each metric has glass hover */}
+                <div className="px-4 pb-6 space-y-2">
+                    {!hasData ? (
+                        <div className="flex flex-col items-center justify-center py-12 text-center">
+                            <div className="h-12 w-12 rounded-xl bg-muted/50 flex items-center justify-center mb-3">
+                                <Activity className="h-6 w-6 text-muted-foreground" />
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                                No data available
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                                Add transactions to track your financial health
+                            </p>
+                        </div>
+                    ) : (
+                        <>
+                            <MetricCard
+                                title="Savings Rate"
+                                value={`${metrics.savingsRate.toFixed(1)}%`}
+                                subtitle="of income saved"
+                                icon={Percent}
+                                status={
+                                    metrics.savingsRate >= 20
+                                        ? "good"
+                                        : metrics.savingsRate >= 10
+                                            ? "warning"
+                                            : "danger"
+                                }
+                                progress={metrics.savingsRate}
+                            />
+
+                            <MetricCard
+                                title="Net Income"
+                                value={formatCurrency(metrics.netIncome, preferredCurrency)}
+                                subtitle="income minus expenses"
+                                icon={TrendingUp}
+                                status={metrics.netIncome > 0 ? "good" : "danger"}
+                            />
+
+                            <MetricCard
+                                title="Savings Goal"
+                                value={formatCurrency(metrics.currentSavings, preferredCurrency)}
+                                subtitle={`of ${formatCurrency(metrics.monthlyTarget, preferredCurrency)} target`}
+                                icon={Target}
+                                status={
+                                    savingsProgress >= 100
+                                        ? "good"
+                                        : savingsProgress >= 50
+                                            ? "warning"
+                                            : "danger"
+                                }
+                                progress={savingsProgress}
+                            />
+
+                            <MetricCard
+                                title="Budget Used"
+                                value={`${metrics.budgetUsed.toFixed(0)}%`}
+                                subtitle="of monthly budget"
+                                icon={AlertCircle}
+                                status={
+                                    metrics.budgetUsed <= 70
+                                        ? "good"
+                                        : metrics.budgetUsed <= 90
+                                            ? "warning"
+                                            : "danger"
+                                }
+                                progress={metrics.budgetUsed}
+                            />
+                        </>
+                    )}
+                </div>
             </div>
-
-            {/* Metrics Grid - Each metric has glass hover */}
-            <div className="px-4 pb-6 space-y-2">
-                <MetricCard
-                    title="Savings Rate"
-                    value={`${healthMetrics.savingsRate}%`}
-                    subtitle="of income saved"
-                    icon={Percent}
-                    status={
-                        healthMetrics.savingsRate >= 20
-                            ? "good"
-                            : healthMetrics.savingsRate >= 10
-                                ? "warning"
-                                : "danger"
-                    }
-                    progress={healthMetrics.savingsRate}
-                />
-
-                <MetricCard
-                    title="Net Income"
-                    value={`$${netIncome.toLocaleString()}`}
-                    subtitle="income minus expenses"
-                    icon={TrendingUp}
-                    status={netIncome > 0 ? "good" : "danger"}
-                />
-
-                <MetricCard
-                    title="Savings Goal"
-                    value={`$${healthMetrics.currentSavings.toLocaleString()}`}
-                    subtitle={`of $${healthMetrics.monthlyTarget.toLocaleString()} target`}
-                    icon={Target}
-                    status={
-                        savingsProgress >= 100
-                            ? "good"
-                            : savingsProgress >= 50
-                                ? "warning"
-                                : "danger"
-                    }
-                    progress={savingsProgress}
-                />
-
-                <MetricCard
-                    title="Budget Used"
-                    value={`${healthMetrics.budgetUsed}%`}
-                    subtitle="of monthly budget"
-                    icon={AlertCircle}
-                    status={
-                        healthMetrics.budgetUsed <= 70
-                            ? "good"
-                            : healthMetrics.budgetUsed <= 90
-                                ? "warning"
-                                : "danger"
-                    }
-                    progress={healthMetrics.budgetUsed}
-                />
-            </div>
-        </div>
+        </TiltCard>
     );
 }

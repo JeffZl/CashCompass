@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo } from "react";
+import toast from "react-hot-toast";
 import { useUser } from "@clerk/nextjs";
 import { PageHeader } from "@/components/PageHeader";
 import { NewTransactionModal, TransactionFormData } from "@/components/transactions/NewTransactionModal";
@@ -30,6 +31,16 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { formatCurrency, calculateCurrencyTotals, getUniqueCurrencies, getCurrency } from "@/lib/currency";
@@ -59,16 +70,24 @@ import {
     CalendarIcon,
     RefreshCw,
     Coins,
+    AlertCircle,
 } from "lucide-react";
+// Supabase hooks - uncomment when USE_SUPABASE is true
+import { useTransactions, useAccounts, useCategories, TransactionWithRelations } from "@/lib/supabase";
 
-// Transaction type with currency
+// Flag to enable/disable Supabase integration (set to true when database is ready)
+const USE_SUPABASE = true;
+
+// Transaction display type (works with both mock and Supabase data)
 interface Transaction {
     id: string;
     amount: number;
     category: string;
+    category_id?: string;
     description: string;
     date: string;
     account: string;
+    account_id?: string;
     type: "income" | "expense";
     currency: string;
     user_id?: string;
@@ -272,10 +291,66 @@ function CurrencySummary({
 export default function TransactionsPage() {
     const { user, isLoaded: isUserLoaded } = useUser();
 
-    // Data state
-    const [transactions, setTransactions] = useState<Transaction[]>(mockTransactions);
-    const [isLoading, setIsLoading] = useState(false);
+    // Supabase hooks for CRUD operations
+    const {
+        transactions: supabaseTransactions,
+        isLoading: transactionsLoading,
+        error: transactionsError,
+        refresh: refreshTransactions,
+        createTransaction,
+        updateTransaction,
+        deleteTransaction,
+    } = useTransactions();
+
+    const {
+        accounts: supabaseAccounts,
+        isLoading: accountsLoading,
+    } = useAccounts();
+
+    const {
+        categories: supabaseCategories,
+        isLoading: categoriesLoading,
+    } = useCategories();
+
+    // Map Supabase transactions to local Transaction type (no mock data fallback)
+    const transactions: Transaction[] = useMemo(() => {
+        if (!USE_SUPABASE) return [];
+        return supabaseTransactions.map((t: any) => ({
+            id: t.id,
+            amount: t.amount,
+            category: t.category?.name || 'Unknown',
+            category_id: t.category_id,
+            description: t.description,
+            date: t.date,
+            account: t.account?.name || 'Unknown',
+            account_id: t.account_id,
+            type: t.type,
+            currency: t.currency,
+            user_id: t.user_id,
+        }));
+    }, [supabaseTransactions]);
+
+    // Map categories and accounts for the modal
+    const categoryOptions = useMemo(() => {
+        return supabaseCategories.map((c: any) => ({
+            id: c.id,
+            name: c.name,
+            type: c.type as "income" | "expense",
+        }));
+    }, [supabaseCategories]);
+
+    const accountOptions = useMemo(() => {
+        return supabaseAccounts.map((a: any) => ({
+            id: a.id,
+            name: a.name,
+        }));
+    }, [supabaseAccounts]);
+
+    // Loading and refreshing state
+    const isLoading = USE_SUPABASE ? transactionsLoading || accountsLoading || categoriesLoading : false;
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
 
     // Filter state
     const [searchQuery, setSearchQuery] = useState("");
@@ -300,48 +375,41 @@ export default function TransactionsPage() {
     const accounts = useMemo(() => [...new Set(transactions.map((t) => t.account))], [transactions]);
     const usedCurrencies = useMemo(() => getUniqueCurrencies(transactions), [transactions]);
 
-    // Fetch transactions from Supabase
-    const fetchTransactions = useCallback(async () => {
-        if (!user) return;
-
-        setIsLoading(true);
-        try {
-            await new Promise((resolve) => setTimeout(resolve, 300));
-            setTransactions(mockTransactions);
-        } catch (error) {
-            console.error("Failed to fetch transactions:", error);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [user]);
-
-    // Refresh transactions
-    const refreshTransactions = async () => {
+    // Refresh handler
+    const handleRefresh = async () => {
         setIsRefreshing(true);
-        await fetchTransactions();
+        await refreshTransactions();
         setIsRefreshing(false);
     };
 
-    // Initial fetch
-    useEffect(() => {
-        if (isUserLoaded && user) {
-            fetchTransactions();
-        }
-    }, [isUserLoaded, user, fetchTransactions]);
-
     // Handle new transaction created
-    const handleTransactionCreated = (formData: TransactionFormData) => {
-        const newTransaction: Transaction = {
-            id: `temp-${Date.now()}`,
-            amount: formData.amount,
-            category: formData.category,
-            description: formData.description,
-            date: format(formData.date, "yyyy-MM-dd"),
-            account: formData.account,
-            type: formData.type,
-            currency: formData.currency,
-        };
-        setTransactions([newTransaction, ...transactions]);
+    const handleTransactionCreated = async (formData: TransactionFormData) => {
+        if (!USE_SUPABASE) return;
+
+        // Check if we have valid category and account selections
+        if (!formData.category_id || !formData.account_id) {
+            toast.error('Please select both a category and an account');
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            await createTransaction({
+                type: formData.type,
+                date: format(formData.date, "yyyy-MM-dd"),
+                amount: formData.amount,
+                currency: formData.currency,
+                category_id: formData.category_id,
+                account_id: formData.account_id,
+                description: formData.description,
+            });
+            toast.success('Transaction created successfully');
+        } catch (error) {
+            console.error("Failed to create transaction:", error);
+            toast.error(error instanceof Error ? error.message : "Failed to create transaction");
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     // Filter and sort transactions
@@ -443,11 +511,24 @@ export default function TransactionsPage() {
         dateRange.to;
 
     const handleDelete = async (id: string) => {
-        setTransactions(transactions.filter((t) => t.id !== id));
+        if (!USE_SUPABASE) return;
+
+        setIsDeleting(true);
+        try {
+            await deleteTransaction(id);
+            // UI updates automatically via real-time subscription
+            toast.success('Transaction deleted successfully');
+        } catch (error) {
+            console.error("Failed to delete transaction:", error);
+            toast.error(error instanceof Error ? error.message : "Failed to delete transaction");
+        } finally {
+            setIsDeleting(false);
+        }
     };
 
     const handleEdit = (id: string) => {
         console.log("Edit transaction:", id);
+        // TODO: Implement edit modal
     };
 
     return (
@@ -461,7 +542,7 @@ export default function TransactionsPage() {
                     <Button
                         variant="ghost"
                         size="icon"
-                        onClick={refreshTransactions}
+                        onClick={handleRefresh}
                         disabled={isRefreshing}
                         className={cn(
                             "h-10 w-10 rounded-xl",
@@ -472,7 +553,11 @@ export default function TransactionsPage() {
                     >
                         <RefreshCw className="h-4 w-4" />
                     </Button>
-                    <NewTransactionModal onTransactionCreated={handleTransactionCreated} />
+                    <NewTransactionModal
+                        onTransactionCreated={handleTransactionCreated}
+                        categories={categoryOptions}
+                        accounts={accountOptions}
+                    />
                 </div>
             </PageHeader>
 
