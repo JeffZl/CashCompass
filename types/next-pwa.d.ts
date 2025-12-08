@@ -1,4 +1,4 @@
-declare module 'next-pwa' {
+declare module '@ducanh2912/next-pwa' {
     import type { NextConfig } from 'next';
 
     interface PWAConfig {
@@ -8,6 +8,9 @@ declare module 'next-pwa' {
         disable?: boolean;
         scope?: string;
         sw?: string;
+        cacheOnFrontEndNav?: boolean;
+        aggressiveFrontEndNavCaching?: boolean;
+        reloadOnOnline?: boolean;
         fallbacks?: {
             document?: string;
             image?: string;
@@ -15,25 +18,12 @@ declare module 'next-pwa' {
             audio?: string;
             video?: string;
         };
-        runtimeCaching?: Array<{
-            urlPattern: RegExp | string;
-            handler: 'CacheFirst' | 'CacheOnly' | 'NetworkFirst' | 'NetworkOnly' | 'StaleWhileRevalidate';
-            options?: {
-                cacheName?: string;
-                expiration?: {
-                    maxEntries?: number;
-                    maxAgeSeconds?: number;
-                };
-                networkTimeoutSeconds?: number;
-                cacheableResponse?: {
-                    statuses?: number[];
-                    headers?: Record<string, string>;
-                };
-            };
-        }>;
+        workboxOptions?: {
+            disableDevLogs?: boolean;
+        };
     }
 
-    function withPWAInit(config: PWAConfig): (nextConfig: NextConfig) => NextConfig;
+    function withPWA(config: PWAConfig): (nextConfig: NextConfig) => NextConfig;
 
-    export default withPWAInit;
+    export default withPWA;
 }
