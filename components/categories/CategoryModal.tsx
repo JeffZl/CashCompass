@@ -282,35 +282,45 @@ export function CategoryModal({ mode, category, isOpen, onOpenChange, onSubmit }
                         <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                             Category Type
                         </Label>
-                        <div className="flex gap-2">
-                            <Button
+                        <div className="flex gap-2 relative z-50">
+                            <button
                                 type="button"
-                                variant="outline"
-                                onClick={() => setFormData({ ...formData, type: "expense" })}
+                                onClick={() => {
+                                    console.log("Expense clicked");
+                                    setFormData((prev) => ({ ...prev, type: "expense" }));
+                                }}
                                 className={cn(
-                                    "flex-1 h-12 rounded-xl font-medium ios-transition",
+                                    "flex-1 h-12 rounded-xl font-medium transition-all duration-200",
+                                    "flex items-center justify-center gap-2",
+                                    "border cursor-pointer select-none",
+                                    "focus:outline-none focus:ring-2 focus:ring-offset-2",
                                     formData.type === "expense"
-                                        ? "bg-rose-500 text-white hover:bg-rose-600 border-rose-500"
-                                        : "border-border/50 hover:bg-rose-500/10"
+                                        ? "bg-rose-500 text-white hover:bg-rose-600 border-rose-500 focus:ring-rose-500"
+                                        : "bg-background border-border/50 hover:bg-rose-500/10 focus:ring-rose-500/50"
                                 )}
                             >
-                                <TrendingUp className="h-4 w-4 mr-2 rotate-180" />
+                                <TrendingUp className="h-4 w-4 rotate-180" />
                                 Expense
-                            </Button>
-                            <Button
+                            </button>
+                            <button
                                 type="button"
-                                variant="outline"
-                                onClick={() => setFormData({ ...formData, type: "income" })}
+                                onClick={() => {
+                                    console.log("Income clicked");
+                                    setFormData((prev) => ({ ...prev, type: "income" }));
+                                }}
                                 className={cn(
-                                    "flex-1 h-12 rounded-xl font-medium ios-transition",
+                                    "flex-1 h-12 rounded-xl font-medium transition-all duration-200",
+                                    "flex items-center justify-center gap-2",
+                                    "border cursor-pointer select-none",
+                                    "focus:outline-none focus:ring-2 focus:ring-offset-2",
                                     formData.type === "income"
-                                        ? "bg-emerald-500 text-white hover:bg-emerald-600 border-emerald-500"
-                                        : "border-border/50 hover:bg-emerald-500/10"
+                                        ? "bg-emerald-500 text-white hover:bg-emerald-600 border-emerald-500 focus:ring-emerald-500"
+                                        : "bg-background border-border/50 hover:bg-emerald-500/10 focus:ring-emerald-500/50"
                                 )}
                             >
-                                <TrendingUp className="h-4 w-4 mr-2" />
+                                <TrendingUp className="h-4 w-4" />
                                 Income
-                            </Button>
+                            </button>
                         </div>
                     </div>
 

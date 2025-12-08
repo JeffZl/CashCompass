@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo } from "react";
+import toast from "react-hot-toast";
 import { useUser } from "@clerk/nextjs";
 import { PageHeader } from "@/components/PageHeader";
 import {
@@ -53,6 +54,11 @@ import {
     MoreHorizontal,
     AlertCircle,
 } from "lucide-react";
+// Supabase hooks - uncomment when USE_SUPABASE is true
+import { useAccounts } from "@/lib/supabase";
+
+// Feature flag - set to true when Supabase database is ready
+const USE_SUPABASE = true;
 
 // Mock data - will be replaced with Supabase data
 const mockAccounts: Account[] = [
@@ -129,10 +135,34 @@ export default function AccountsPage() {
     const { preferredCurrency, showConvertedAmounts } = useUserSettings();
     const { convertAmount } = useExchangeRates();
 
-    // Data state
-    const [accounts, setAccounts] = useState<Account[]>(mockAccounts);
-    const [isLoading, setIsLoading] = useState(false);
+    // Supabase hooks for CRUD operations
+    const {
+        accounts: supabaseAccounts,
+        isLoading: supabaseLoading,
+        error: supabaseError,
+        refresh: refreshAccounts,
+        createAccount,
+        updateAccount,
+        deleteAccount,
+    } = useAccounts();
+
+    // Map Supabase accounts to local Account type (no mock data fallback)
+    const accounts: Account[] = useMemo(() => {
+        if (!USE_SUPABASE) return [];
+        return supabaseAccounts.map((acc: { id: string; name: string; type: 'bank' | 'cash' | 'card' | 'wallet' | 'savings' | 'other'; balance: number; currency: string }) => ({
+            id: acc.id,
+            name: acc.name,
+            type: acc.type,
+            balance: acc.balance,
+            currency: acc.currency,
+        }));
+    }, [supabaseAccounts]);
+
+    // Loading and refreshing state
+    const isLoading = USE_SUPABASE ? supabaseLoading : false;
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
 
     // Filter state
     const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -146,44 +176,12 @@ export default function AccountsPage() {
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
     const [accountToDelete, setAccountToDelete] = useState<Account | null>(null);
 
-    // Fetch accounts from Supabase
-    const fetchAccounts = useCallback(async () => {
-        if (!user) return;
-
-        setIsLoading(true);
-        try {
-            // TODO: Replace with actual Supabase fetch
-            // const { data, error } = await supabase
-            //     .from('accounts')
-            //     .select('*')
-            //     .eq('user_id', user.id)
-            //     .order('created_at', { ascending: false });
-            // 
-            // if (error) throw error;
-            // setAccounts(data || []);
-
-            await new Promise((resolve) => setTimeout(resolve, 300));
-            setAccounts(mockAccounts);
-        } catch (error) {
-            console.error("Failed to fetch accounts:", error);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [user]);
-
-    // Refresh accounts
-    const refreshAccounts = async () => {
+    // Refresh handler
+    const handleRefresh = async () => {
         setIsRefreshing(true);
-        await fetchAccounts();
+        await refreshAccounts();
         setIsRefreshing(false);
     };
-
-    // Initial fetch
-    useEffect(() => {
-        if (isUserLoaded && user) {
-            fetchAccounts();
-        }
-    }, [isUserLoaded, user, fetchAccounts]);
 
     // Filter accounts
     const filteredAccounts = useMemo(() => {
@@ -209,7 +207,7 @@ export default function AccountsPage() {
         }
 
         return { byCurrency, unifiedTotal };
-    }, [accounts, preferredCurrency, showConvertedAmounts]);
+    }, [accounts, preferredCurrency, showConvertedAmounts, convertAmount]);
 
     // Handlers
     const handleCreateAccount = () => {
@@ -232,66 +230,52 @@ export default function AccountsPage() {
     const handleDeleteConfirm = async () => {
         if (!accountToDelete) return;
 
+        setIsDeleting(true);
         try {
-            // TODO: Delete from Supabase
-            // const { error } = await supabase
-            //     .from('accounts')
-            //     .delete()
-            //     .eq('id', accountToDelete.id);
-            // 
-            // if (error) throw error;
-
-            setAccounts(accounts.filter((acc) => acc.id !== accountToDelete.id));
+            if (USE_SUPABASE) {
+                await deleteAccount(accountToDelete.id);
+            }
+            // UI updates automatically via real-time subscription
+            toast.success('Account deleted successfully');
         } catch (error) {
             console.error("Failed to delete account:", error);
+            toast.error(error instanceof Error ? error.message : "Failed to delete account");
         } finally {
+            setIsDeleting(false);
             setDeleteConfirmOpen(false);
             setAccountToDelete(null);
         }
     };
 
     const handleSubmitAccount = async (data: AccountFormData) => {
-        if (modalMode === "create") {
-            // TODO: Insert into Supabase
-            // const { data: newAccount, error } = await supabase
-            //     .from('accounts')
-            //     .insert({
-            //         user_id: user.id,
-            //         name: data.name,
-            //         type: data.type,
-            //         balance: data.balance,
-            //         currency: data.currency,
-            //     })
-            //     .select()
-            //     .single();
-            // 
-            // if (error) throw error;
-            // setAccounts([newAccount, ...accounts]);
-
-            const newAccount: Account = {
-                id: `temp-${Date.now()}`,
-                ...data,
-            };
-            setAccounts([newAccount, ...accounts]);
-        } else if (editingAccount) {
-            // TODO: Update in Supabase
-            // const { error } = await supabase
-            //     .from('accounts')
-            //     .update({
-            //         name: data.name,
-            //         type: data.type,
-            //         balance: data.balance,
-            //         currency: data.currency,
-            //     })
-            //     .eq('id', editingAccount.id);
-            // 
-            // if (error) throw error;
-
-            setAccounts(accounts.map((acc) =>
-                acc.id === editingAccount.id
-                    ? { ...acc, ...data }
-                    : acc
-            ));
+        setIsSaving(true);
+        try {
+            if (modalMode === "create") {
+                if (USE_SUPABASE) {
+                    await createAccount({
+                        name: data.name,
+                        type: data.type as 'bank' | 'cash' | 'card' | 'wallet' | 'savings' | 'other',
+                        balance: data.balance,
+                        currency: data.currency,
+                    });
+                }
+            } else if (editingAccount) {
+                if (USE_SUPABASE) {
+                    await updateAccount(editingAccount.id, {
+                        name: data.name,
+                        type: data.type as 'bank' | 'cash' | 'card' | 'wallet' | 'savings' | 'other',
+                        balance: data.balance,
+                        currency: data.currency,
+                    });
+                }
+            }
+            setIsModalOpen(false);
+            toast.success(modalMode === 'create' ? 'Account created successfully' : 'Account updated successfully');
+        } catch (error) {
+            console.error("Failed to save account:", error);
+            toast.error(error instanceof Error ? error.message : "Failed to save account");
+        } finally {
+            setIsSaving(false);
         }
     };
 

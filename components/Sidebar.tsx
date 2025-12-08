@@ -15,6 +15,9 @@ import {
     ChevronLeft,
     Menu,
     X,
+    BarChart3,
+    Target,
+    Calendar,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -43,6 +46,21 @@ const navItems = [
         title: "Budgets",
         href: "/budgets",
         icon: Wallet,
+    },
+    {
+        title: "Goals",
+        href: "/goals",
+        icon: Target,
+    },
+    {
+        title: "Reports",
+        href: "/reports",
+        icon: BarChart3,
+    },
+    {
+        title: "Calendar",
+        href: "/calendar",
+        icon: Calendar,
     },
 ];
 

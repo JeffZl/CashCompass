@@ -36,62 +36,42 @@ import {
     FileText,
     Tag,
     CreditCard,
+    AlertCircle,
 } from "lucide-react";
 import { format } from "date-fns";
 
+// Category type for props
+export interface CategoryOption {
+    id: string;
+    name: string;
+    type: "income" | "expense";
+}
+
+// Account type for props
+export interface AccountOption {
+    id: string;
+    name: string;
+}
+
 interface NewTransactionModalProps {
     onTransactionCreated?: (transaction: TransactionFormData) => void;
+    categories?: CategoryOption[];
+    accounts?: AccountOption[];
 }
 
 export interface TransactionFormData {
     amount: number;
     type: "income" | "expense";
     category: string;
+    category_id?: string;
     description: string;
     date: Date;
     account: string;
+    account_id?: string;
     currency: string;
 }
 
-// Available categories by type
-const categories = {
-    expense: [
-        "Groceries",
-        "Food & Drink",
-        "Housing",
-        "Transportation",
-        "Utilities",
-        "Entertainment",
-        "Shopping",
-        "Health",
-        "Personal Care",
-        "Education",
-        "Travel",
-        "Other",
-    ],
-    income: [
-        "Salary",
-        "Freelance",
-        "Investments",
-        "Dividends",
-        "Rental Income",
-        "Refund",
-        "Gift",
-        "Other",
-    ],
-};
-
-// Available accounts
-const accounts = [
-    "Chase Checking",
-    "Chase Savings",
-    "Apple Card",
-    "Amex Gold",
-    "PayPal",
-    "Cash",
-];
-
-export function NewTransactionModal({ onTransactionCreated }: NewTransactionModalProps) {
+export function NewTransactionModal({ onTransactionCreated, categories = [], accounts = [] }: NewTransactionModalProps) {
     const { user } = useUser();
     const [isOpen, setIsOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -324,29 +304,39 @@ export function NewTransactionModal({ onTransactionCreated }: NewTransactionModa
                             <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                                 Category
                             </Label>
-                            <Select
-                                value={formData.category}
-                                onValueChange={(value) => setFormData({ ...formData, category: value })}
-                            >
-                                <SelectTrigger
-                                    className={cn(
-                                        "h-12 rounded-xl border-border/50",
-                                        errors.category && "border-rose-500"
-                                    )}
+                            {categories.filter(c => c.type === formData.type).length === 0 ? (
+                                <div className="h-12 rounded-xl border border-dashed border-border/50 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                                    <AlertCircle className="h-4 w-4" />
+                                    No {formData.type} categories yet
+                                </div>
+                            ) : (
+                                <Select
+                                    value={formData.category_id || ""}
+                                    onValueChange={(value) => {
+                                        const cat = categories.find(c => c.id === value);
+                                        setFormData({ ...formData, category: cat?.name || '', category_id: value });
+                                    }}
                                 >
-                                    <div className="flex items-center gap-2">
-                                        <Tag className="h-4 w-4 text-muted-foreground" />
-                                        <SelectValue placeholder="Select category" />
-                                    </div>
-                                </SelectTrigger>
-                                <SelectContent className="rounded-xl">
-                                    {categories[formData.type].map((cat) => (
-                                        <SelectItem key={cat} value={cat}>
-                                            {cat}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                                    <SelectTrigger
+                                        className={cn(
+                                            "h-12 rounded-xl border-border/50",
+                                            errors.category && "border-rose-500"
+                                        )}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <Tag className="h-4 w-4 text-muted-foreground" />
+                                            <SelectValue placeholder="Select category" />
+                                        </div>
+                                    </SelectTrigger>
+                                    <SelectContent className="rounded-xl">
+                                        {categories.filter(c => c.type === formData.type).map((cat) => (
+                                            <SelectItem key={cat.id} value={cat.id}>
+                                                {cat.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            )}
                             {errors.category && <p className="text-xs text-rose-500">{errors.category}</p>}
                         </div>
 
@@ -355,29 +345,39 @@ export function NewTransactionModal({ onTransactionCreated }: NewTransactionModa
                             <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                                 Account
                             </Label>
-                            <Select
-                                value={formData.account}
-                                onValueChange={(value) => setFormData({ ...formData, account: value })}
-                            >
-                                <SelectTrigger
-                                    className={cn(
-                                        "h-12 rounded-xl border-border/50",
-                                        errors.account && "border-rose-500"
-                                    )}
+                            {accounts.length === 0 ? (
+                                <div className="h-12 rounded-xl border border-dashed border-border/50 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                                    <AlertCircle className="h-4 w-4" />
+                                    No accounts yet
+                                </div>
+                            ) : (
+                                <Select
+                                    value={formData.account_id || ""}
+                                    onValueChange={(value) => {
+                                        const acc = accounts.find(a => a.id === value);
+                                        setFormData({ ...formData, account: acc?.name || '', account_id: value });
+                                    }}
                                 >
-                                    <div className="flex items-center gap-2">
-                                        <CreditCard className="h-4 w-4 text-muted-foreground" />
-                                        <SelectValue placeholder="Select account" />
-                                    </div>
-                                </SelectTrigger>
-                                <SelectContent className="rounded-xl">
-                                    {accounts.map((acc) => (
-                                        <SelectItem key={acc} value={acc}>
-                                            {acc}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                                    <SelectTrigger
+                                        className={cn(
+                                            "h-12 rounded-xl border-border/50",
+                                            errors.account && "border-rose-500"
+                                        )}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <CreditCard className="h-4 w-4 text-muted-foreground" />
+                                            <SelectValue placeholder="Select account" />
+                                        </div>
+                                    </SelectTrigger>
+                                    <SelectContent className="rounded-xl">
+                                        {accounts.map((acc) => (
+                                            <SelectItem key={acc.id} value={acc.id}>
+                                                {acc.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            )}
                             {errors.account && <p className="text-xs text-rose-500">{errors.account}</p>}
                         </div>
                     </div>

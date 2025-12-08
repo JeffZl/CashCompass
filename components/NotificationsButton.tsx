@@ -1,7 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/lib/currency";
+import { useUserSettings } from "@/lib/stores/userSettings";
+import { useBudgets, useTransactions } from "@/lib/supabase";
 import {
     Bell,
     X,
@@ -12,6 +15,8 @@ import {
     AlertTriangle,
     Wallet,
     BellOff,
+    Sparkles,
+    Target,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -24,42 +29,6 @@ interface Notification {
     isRead: boolean;
     type: "transaction" | "alert" | "success" | "info";
 }
-
-// Mock notifications data
-const initialNotifications: Notification[] = [
-    {
-        id: "1",
-        title: "New Transaction Added",
-        description: "You added a new expense of $85.32 at Whole Foods.",
-        timestamp: new Date(Date.now() - 1000 * 60 * 5), // 5 mins ago
-        isRead: false,
-        type: "transaction",
-    },
-    {
-        id: "2",
-        title: "Budget Alert",
-        description: "You've used 80% of your Food & Dining budget this month.",
-        timestamp: new Date(Date.now() - 1000 * 60 * 30), // 30 mins ago
-        isRead: false,
-        type: "alert",
-    },
-    {
-        id: "3",
-        title: "Savings Goal Reached!",
-        description: "Congratulations! You've reached your monthly savings goal.",
-        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
-        isRead: false,
-        type: "success",
-    },
-    {
-        id: "4",
-        title: "Account Connected",
-        description: "Your Chase Checking account has been successfully linked.",
-        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
-        isRead: true,
-        type: "info",
-    },
-];
 
 function getNotificationIcon(type: Notification["type"]) {
     switch (type) {
@@ -104,9 +73,105 @@ function formatTimeAgo(date: Date): string {
 }
 
 export function NotificationsButton() {
-    const [notifications, setNotifications] = useState<Notification[]>(initialNotifications);
+    const { preferredCurrency } = useUserSettings();
+    const { budgets } = useBudgets();
+    const { transactions } = useTransactions();
+
+    const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+    const [readIds, setReadIds] = useState<Set<string>>(new Set());
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
+
+    // Generate dynamic notifications based on real data
+    const notifications = useMemo<Notification[]>(() => {
+        const notifs: Notification[] = [];
+        const now = new Date();
+
+        // Budget alerts - budgets over 70% used
+        budgets.forEach((budget: any) => {
+            if (!budget.category) return;
+
+            const percentUsed = budget.amount > 0 ? (budget.spent / budget.amount) * 100 : 0;
+            const notifId = `budget-alert-${budget.id}`;
+
+            if (dismissedIds.has(notifId)) return;
+
+            if (percentUsed >= 100) {
+                notifs.push({
+                    id: notifId,
+                    title: "Budget Exceeded!",
+                    description: `You've exceeded your ${budget.category.name} budget by ${formatCurrency(budget.spent - budget.amount, preferredCurrency)}`,
+                    timestamp: now,
+                    isRead: readIds.has(notifId),
+                    type: "alert",
+                });
+            } else if (percentUsed >= 80) {
+                notifs.push({
+                    id: notifId,
+                    title: "Budget Warning",
+                    description: `You've used ${percentUsed.toFixed(0)}% of your ${budget.category.name} budget`,
+                    timestamp: now,
+                    isRead: readIds.has(notifId),
+                    type: "alert",
+                });
+            }
+        });
+
+        // Recent transaction notifications (last 24 hours)
+        const recentTransactions = transactions
+            .filter((t: any) => {
+                const txDate = new Date(t.date);
+                const hoursDiff = (now.getTime() - txDate.getTime()) / (1000 * 60 * 60);
+                return hoursDiff <= 24;
+            })
+            .slice(0, 3); // Max 3 recent transaction notifications
+
+        recentTransactions.forEach((tx: any) => {
+            const notifId = `tx-${tx.id}`;
+            if (dismissedIds.has(notifId)) return;
+
+            notifs.push({
+                id: notifId,
+                title: tx.type === "income" ? "Income Received" : "Expense Added",
+                description: `${tx.description || tx.category?.name || 'Transaction'}: ${formatCurrency(Math.abs(tx.amount), tx.currency || preferredCurrency)}`,
+                timestamp: new Date(tx.date),
+                isRead: readIds.has(notifId),
+                type: "transaction",
+            });
+        });
+
+        // Savings milestone check
+        const thisMonth = now.getMonth();
+        const thisYear = now.getFullYear();
+        const thisMonthTx = transactions.filter((t: any) => {
+            const d = new Date(t.date);
+            return d.getMonth() === thisMonth && d.getFullYear() === thisYear;
+        });
+
+        const income = thisMonthTx
+            .filter((t: any) => t.type === "income")
+            .reduce((sum, t: any) => sum + Math.abs(t.amount), 0);
+        const expenses = thisMonthTx
+            .filter((t: any) => t.type === "expense")
+            .reduce((sum, t: any) => sum + Math.abs(t.amount), 0);
+        const savings = income - expenses;
+        const savingsRate = income > 0 ? (savings / income) * 100 : 0;
+
+        const savingsNotifId = `savings-${thisMonth}-${thisYear}`;
+        if (savingsRate >= 20 && !dismissedIds.has(savingsNotifId)) {
+            notifs.push({
+                id: savingsNotifId,
+                title: "Great Savings Rate!",
+                description: `You're saving ${savingsRate.toFixed(0)}% of your income this month. Keep it up!`,
+                timestamp: now,
+                isRead: readIds.has(savingsNotifId),
+                type: "success",
+            });
+        }
+
+        // Sort by timestamp (newest first)
+        return notifs.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    }, [budgets, transactions, preferredCurrency, dismissedIds, readIds]);
 
     const unreadCount = notifications.filter((n) => !n.isRead).length;
 
@@ -138,29 +203,21 @@ export function NotificationsButton() {
     }, []);
 
     const markAsRead = (id: string) => {
-        setNotifications((prev) =>
-            prev.map((notification) =>
-                notification.id === id
-                    ? { ...notification, isRead: true }
-                    : notification
-            )
-        );
+        setReadIds(prev => new Set([...prev, id]));
     };
 
     const markAllAsRead = () => {
-        setNotifications((prev) =>
-            prev.map((notification) => ({ ...notification, isRead: true }))
-        );
+        const allIds = notifications.map(n => n.id);
+        setReadIds(prev => new Set([...prev, ...allIds]));
     };
 
     const deleteNotification = (id: string) => {
-        setNotifications((prev) =>
-            prev.filter((notification) => notification.id !== id)
-        );
+        setDismissedIds(prev => new Set([...prev, id]));
     };
 
     const clearAll = () => {
-        setNotifications([]);
+        const allIds = notifications.map(n => n.id);
+        setDismissedIds(prev => new Set([...prev, ...allIds]));
     };
 
     return (

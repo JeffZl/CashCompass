@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo } from "react";
+import toast from "react-hot-toast";
 import { useUser } from "@clerk/nextjs";
 import { PageHeader } from "@/components/PageHeader";
 import {
@@ -39,6 +40,11 @@ import {
     AlertCircle,
     Hash,
 } from "lucide-react";
+// Supabase hooks - uncomment when USE_SUPABASE is true
+import { useCategories } from "@/lib/supabase";
+
+// Feature flag - set to true when Supabase database is ready
+const USE_SUPABASE = true;
 
 // Mock data - will be replaced with Supabase data
 const mockCategories: Category[] = [
@@ -169,9 +175,32 @@ const mockCategories: Category[] = [
 export default function CategoriesPage() {
     const { user, isLoaded: isUserLoaded } = useUser();
 
-    // Data state
-    const [categories, setCategories] = useState<Category[]>(mockCategories);
-    const [isLoading, setIsLoading] = useState(false);
+    // Supabase hooks for CRUD operations
+    const {
+        categories: supabaseCategories,
+        isLoading: supabaseLoading,
+        error: supabaseError,
+        refresh: refreshCategories,
+        createCategory,
+        updateCategory,
+        deleteCategory,
+    } = useCategories();
+
+    // Map Supabase categories to local Category type (no mock data fallback)
+    const categories: Category[] = useMemo(() => {
+        if (!USE_SUPABASE) return [];
+        return supabaseCategories.map((cat: { id: string; name: string; icon: string; color: string; type: 'income' | 'expense'; transaction_count?: number }) => ({
+            id: cat.id,
+            name: cat.name,
+            icon: cat.icon,
+            color: cat.color,
+            type: cat.type,
+            transaction_count: cat.transaction_count || 0,
+        }));
+    }, [supabaseCategories]);
+
+    // Loading and refreshing state
+    const isLoading = USE_SUPABASE ? supabaseLoading : false;
     const [isRefreshing, setIsRefreshing] = useState(false);
 
     // Filter state
@@ -186,45 +215,15 @@ export default function CategoriesPage() {
     // Delete confirmation state
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
     const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
 
-    // Fetch categories from Supabase
-    const fetchCategories = useCallback(async () => {
-        if (!user) return;
-
-        setIsLoading(true);
-        try {
-            // TODO: Replace with actual Supabase fetch
-            // const { data, error } = await supabase
-            //     .from('categories')
-            //     .select('*, transactions(count)')
-            //     .eq('user_id', user.id)
-            //     .order('name');
-            // 
-            // if (error) throw error;
-            // setCategories(data || []);
-
-            await new Promise((resolve) => setTimeout(resolve, 300));
-            setCategories(mockCategories);
-        } catch (error) {
-            console.error("Failed to fetch categories:", error);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [user]);
-
-    // Refresh categories
-    const refreshCategories = async () => {
+    // Refresh handler
+    const handleRefresh = async () => {
         setIsRefreshing(true);
-        await fetchCategories();
+        await refreshCategories();
         setIsRefreshing(false);
     };
-
-    // Initial fetch
-    useEffect(() => {
-        if (isUserLoaded && user) {
-            fetchCategories();
-        }
-    }, [isUserLoaded, user, fetchCategories]);
 
     // Filter categories
     const filteredCategories = useMemo(() => {
@@ -270,77 +269,52 @@ export default function CategoriesPage() {
     const handleDeleteConfirm = async () => {
         if (!categoryToDelete) return;
 
+        setIsDeleting(true);
         try {
-            // TODO: Delete from Supabase
-            // Check if category has transactions
-            // const { count } = await supabase
-            //     .from('transactions')
-            //     .select('*', { count: 'exact', head: true })
-            //     .eq('category_id', categoryToDelete.id);
-            // 
-            // if (count > 0) {
-            //     // Handle reassignment or prevent deletion
-            // }
-            // 
-            // const { error } = await supabase
-            //     .from('categories')
-            //     .delete()
-            //     .eq('id', categoryToDelete.id);
-            // 
-            // if (error) throw error;
-
-            setCategories(categories.filter((cat) => cat.id !== categoryToDelete.id));
+            if (USE_SUPABASE) {
+                // Use Supabase hook to delete
+                await deleteCategory(categoryToDelete.id, true); // force delete
+            }
+            toast.success('Category deleted successfully');
         } catch (error) {
             console.error("Failed to delete category:", error);
+            toast.error(error instanceof Error ? error.message : "Failed to delete category");
         } finally {
+            setIsDeleting(false);
             setDeleteConfirmOpen(false);
             setCategoryToDelete(null);
         }
     };
 
     const handleSubmitCategory = async (data: CategoryFormData) => {
-        if (modalMode === "create") {
-            // TODO: Insert into Supabase
-            // const { data: newCategory, error } = await supabase
-            //     .from('categories')
-            //     .insert({
-            //         user_id: user.id,
-            //         name: data.name,
-            //         icon: data.icon,
-            //         color: data.color,
-            //         type: data.type,
-            //     })
-            //     .select()
-            //     .single();
-            // 
-            // if (error) throw error;
-            // setCategories([...categories, newCategory]);
-
-            const newCategory: Category = {
-                id: `temp-${Date.now()}`,
-                ...data,
-                transaction_count: 0,
-            };
-            setCategories([...categories, newCategory]);
-        } else if (editingCategory) {
-            // TODO: Update in Supabase
-            // const { error } = await supabase
-            //     .from('categories')
-            //     .update({
-            //         name: data.name,
-            //         icon: data.icon,
-            //         color: data.color,
-            //         type: data.type,
-            //     })
-            //     .eq('id', editingCategory.id);
-            // 
-            // if (error) throw error;
-
-            setCategories(categories.map((cat) =>
-                cat.id === editingCategory.id
-                    ? { ...cat, ...data }
-                    : cat
-            ));
+        setIsSaving(true);
+        try {
+            if (modalMode === "create") {
+                if (USE_SUPABASE) {
+                    await createCategory({
+                        name: data.name,
+                        icon: data.icon,
+                        color: data.color,
+                        type: data.type,
+                    });
+                }
+            } else if (editingCategory) {
+                if (USE_SUPABASE) {
+                    await updateCategory(editingCategory.id, {
+                        name: data.name,
+                        icon: data.icon,
+                        color: data.color,
+                        type: data.type,
+                    });
+                }
+            }
+            setIsModalOpen(false);
+            toast.success(modalMode === 'create' ? 'Category created successfully' : 'Category updated successfully');
+        } catch (error) {
+            console.error("Failed to save category:", error);
+            toast.error(error instanceof Error ? error.message : "Failed to save category");
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -355,7 +329,7 @@ export default function CategoriesPage() {
                     <Button
                         variant="ghost"
                         size="icon"
-                        onClick={refreshCategories}
+                        onClick={handleRefresh}
                         disabled={isRefreshing}
                         className={cn(
                             "h-10 w-10 rounded-xl",

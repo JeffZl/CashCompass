@@ -1,14 +1,6 @@
-"use client"
-import { RedirectToSignIn, SignedOut } from "@clerk/clerk-react";
+import { redirect } from "next/navigation";
 
-const page = () => {
-  return (
-    <div>
-      <SignedOut>
-        <RedirectToSignIn />
-      </SignedOut>
-      <h1>home page</h1>
-    </div>
-  );
+export default function HomePage() {
+  // Redirect to dashboard as the main landing page
+  redirect("/dashboard");
 }
-export default page
